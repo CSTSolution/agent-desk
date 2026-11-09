@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Desk</title>
+  <meta name="csp-nonce" content="__CSP_NONCE__">
+  <meta name="description" content="AI work agents can buy, paid only on delivery.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%232554d6' d='M8 1l7 7-7 7-7-7z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">◆</span>
+      <div>
+        <h1>Agent Desk</h1>
+        <p class="tag">AI work, paid only when it passes inspection</p>
+      </div>
+    </div>
+    <div id="account" class="account">
+      <div id="wallet" class="wallet" hidden>
+        <span id="whoami" class="muted"></span>
+        <span class="muted">Balance</span> <strong id="balance">–</strong>
+        <span id="walletName" class="pill"></span>
+        <button type="button" id="showPassword" class="ghost slim">Change password</button>
+        <button type="button" id="signOut" class="ghost slim">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="how" aria-label="How it works">
+      <ol>
+        <li><b>Plan.</b> Nemotron turns your request into a pipeline of AI services.</li>
+        <li><b>Hold.</b> You approve the quote in PayPal. It's an authorization: held, not charged.</li>
+        <li><b>Run &amp; inspect.</b> Every output is checked: speech is transcribed back, translations are back-translated.</li>
+        <li><b>Settle.</b> PayPal captures only the steps that passed. The rest of the hold is released.</li>
+      </ol>
+    </section>
+
+    <section class="card auth" id="authCard">
+      <div>
+        <h2>Sign in</h2>
+        <form id="signinForm" class="stack">
+          <label>Username <input id="siUser" type="text" autocomplete="username" required></label>
+          <label>Password <input id="siPass" type="password" autocomplete="current-password" required></label>
+          <button type="submit" id="signinBtn">Sign in</button>
+        </form>
+      </div>
+      <div>
+        <h2>Register with an invite code</h2>
+        <form id="registerForm" class="stack">
+          <label>Invite code <input id="reInvite" type="text" autocomplete="off" required></label>
+          <label>Choose a username <input id="reUser" type="text" autocomplete="username" minlength="3" maxlength="40" required></label>
+          <label>Choose a password (10 or more characters) <input id="rePass" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
+          <button type="submit" id="registerBtn">Create account</button>
+        </form>
+      </div>
+      <p id="authMsg" class="msg wide" role="status"></p>
+      <p class="muted small wide">This is a private, invite-only demo. Judges: the invite code is in the Devpost testing instructions.</p>
+    </section>
+
+    <section class="card" id="passwordCard" hidden>
+      <h2>Change password</h2>
+      <form id="passwordForm" class="stack narrow">
+        <label>Current password <input id="pwCurrent" type="password" autocomplete="current-password" required></label>
+        <label>New password (10 or more characters) <input id="pwNext" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
+        <button type="submit" id="passwordBtn">Change password</button>
+      </form>
+      <p id="passwordMsg" class="msg" role="status"></p>
+    </section>
+
+    <section class="card" id="testLogins" hidden>
+      <h2>PayPal sandbox logins to try</h2>
+      <p class="muted small">Test accounts with fake money, for the PayPal step. Please don't change their passwords: other testers use them too.</p>
+      <table class="steps">
+        <thead><tr><th>Email</th><th>Password</th></tr></thead>
+        <tbody id="testLoginRows"></tbody>
+      </table>
+    </section>
+
+    <section class="card" id="compose" hidden>
+      <h2>1. What do you need?</h2>
+      <form id="requestForm">
+        <label for="request" class="sr">Request</label>
+        <textarea id="request" rows="2" maxlength="600" placeholder="e.g. Read my script aloud in a British voice" required></textarea>
+        <div class="examples" id="examples"></div>
+        <div class="attach">
+          <label class="filebtn">
+            <input id="file" type="file" accept="audio/*,.wav,.mp3,.m4a,image/png,image/jpeg,image/webp">
+            Attach audio or image
+          </label>
+          <button type="button" id="addText" class="ghost">Attach text</button>
+        </div>
+        <div id="textBox" hidden>
+          <label for="text" class="sr">Text attachment</label>
+          <textarea id="text" rows="4" maxlength="3000" placeholder="Paste the text the job should use"></textarea>
+        </div>
+        <ul id="attachments" class="attachments"></ul>
+        <button type="submit" id="quoteBtn">Get a quote</button>
+        <p id="composeMsg" class="msg" role="status"></p>
+      </form>
+    </section>
+
+    <section class="card" id="quote" hidden>
+      <h2>2. Quote</h2>
+      <p id="quoteSummary" class="summary"></p>
+      <table class="steps">
+        <thead><tr><th>#</th><th>Service</th><th>How it's checked</th><th class="num">Price</th></tr></thead>
+        <tbody id="quoteSteps"></tbody>
+        <tfoot><tr><td colspan="3">Total held</td><td class="num" id="quoteTotal"></td></tr></tfoot>
+      </table>
+      <button id="holdBtn">Hold and run</button>
+      <div id="paypalBox" hidden>
+        <p class="muted small">Pay with PayPal (sandbox). Approving places a <b>hold</b> only: you're charged after inspection, for the steps that passed.</p>
+        <div id="paypalButtons"></div>
+      </div>
+      <p id="quoteMsg" class="msg" role="status"></p>
+    </section>
+
+    <section class="card" id="job" hidden>
+      <h2>3. Work and inspection</h2>
+      <ol id="jobSteps" class="timeline"></ol>
+      <div class="settle" id="settle">
+        <div><span class="muted">Held</span><strong id="held">–</strong></div>
+        <div><span class="muted">Captured</span><strong id="captured" class="good">–</strong></div>
+        <div><span class="muted">Released</span><strong id="released">–</strong></div>
+        <div><span class="muted">Status</span><strong id="jobStatus">–</strong></div>
+      </div>
+      <p id="paypalRefs" class="muted small"></p>
+    </section>
+
+    <section class="card" id="agentsCard" hidden>
+      <h2>Let your agents buy</h2>
+      <p class="muted small">Give an AI agent (Claude, ChatGPT, your own bot) a key to buy from Agent Desk over MCP. You save PayPal once and set its limits. Every job is still held first and captured only for the steps that pass inspection.</p>
+      <form id="mandateForm" class="mandate">
+        <label>Agent name <input id="mLabel" type="text" maxlength="40" value="My assistant" required></label>
+        <label>Per job ($) <input id="mPerJob" type="number" min="0.05" max="20" step="0.05" value="1.00" required></label>
+        <label>Total ($) <input id="mTotal" type="number" min="0.05" max="100" step="0.05" value="5.00" required></label>
+        <button type="submit" id="mandateBtn">Save PayPal for my agent</button>
+      </form>
+      <p id="mandateMsg" class="msg" role="status"></p>
+      <div id="keyBox" class="keybox" hidden>
+        <p><b>Your agent key</b> (shown once; copy it now):</p>
+        <pre id="agentKey"></pre>
+        <p class="muted small">Add Agent Desk to Claude Code:</p>
+        <pre id="mcpCmd"></pre>
+        <p class="muted small">Or any MCP client: Streamable HTTP at <code id="mcpUrl"></code> with the header <code>Authorization: Bearer &lt;key&gt;</code>.</p>
+      </div>
+      <ul id="mandates" class="mandates"></ul>
+    </section>
+
+    <section class="card" id="ledgerCard" hidden>
+      <div class="ledgerhead">
+        <h2>Ledger</h2>
+        <button type="button" id="exportCsv" class="ghost">Export CSV</button>
+      </div>
+      <p class="muted small">Every PayPal movement, for people and agents. Sort or filter any column.</p>
+      <div id="ledgerGrid"></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    Planning, inspection and request filtering run on NVIDIA Nemotron.
+    The AI services run on Fixlark's self-hosted models. Payments use the PayPal sandbox: no real money moves. Text you attach is sent to NVIDIA's API for checking; attachments and results are deleted after 24 hours.
+  </footer>
+</body>
+</html>

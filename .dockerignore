@@ -1,0 +1,11 @@
+node_modules
+data
+data-dev
+out
+.env
+.env.*
+.git
+.claude
+test
+*.log
+.DS_Store

@@ -1,0 +1,18 @@
+# Run Agent Desk in a locked-down container: docker compose up -d --build
+services:
+  agent-desk:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /app/data
+      PORT: "8787"
+    mem_limit: 256m
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:8787:8787"
