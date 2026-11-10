@@ -28,6 +28,7 @@ export function openStore(dir = config.dataDir) {
   for (const col of ['order_id TEXT', 'capture_id TEXT', 'mandate_id TEXT']) {
     try { db.exec(`ALTER TABLE jobs ADD COLUMN ${col}`); } catch { /* already there */ }
   }
+  try { db.exec('ALTER TABLE accounts ADD COLUMN recovery_hash TEXT'); } catch { /* already there */ }
   return { db, dir };
 }
 

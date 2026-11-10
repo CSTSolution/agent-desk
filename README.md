@@ -105,7 +105,7 @@ node --env-file=.env --import tsx test/judge-eval.live.ts # labelled translation
 
 ## Safety
 
-- **Access:** invite-only registration, then username and password, with an agent key for MCP. Passwords are hashed with scrypt, and sessions and keys are stored as hashes. Wrong passwords, codes and keys are throttled per visitor and per username. Each account has its own spending limit and sees only its own data.
+- **Access:** invite-only registration, then username and password, with an agent key for MCP. There's no email, so a forgotten password is reset with a recovery code shown once at registration and replaced each time it's used; an operator can issue a new one with `src/cli/recovery-code.ts`. Passwords are hashed with scrypt, and sessions, keys and recovery codes are stored as hashes. Wrong passwords, codes and keys are throttled per visitor and per username. Each account has its own spending limit and sees only its own data.
 - **Sandbox only:** the server refuses to start against live PayPal unless `ALLOW_LIVE_PAYPAL=1`.
 - **Spending:** code and agent limits are checked before PayPal is called, and money on its way to PayPal counts against them, so purchases started together can't overspend. Payment attempts, new agents and running jobs are rate-limited.
 - **Delivery:** outputs are released only after PayPal has settled the job. If a capture fails or the server restarts mid-job, the hold is released and nothing is charged.

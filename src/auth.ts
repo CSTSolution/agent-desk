@@ -5,6 +5,10 @@
  *
  * Passwords are hashed with scrypt. Session tokens are random, sent in a header
  * (so no cookies and no CSRF), and stored only as hashes.
+ *
+ * There is no email, so a forgotten password is reset with a recovery code:
+ * shown once at registration, stored as a hash, replaced each time it's used.
+ * An operator can issue a new one with src/cli/recovery-code.ts.
  */
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
@@ -14,6 +18,14 @@ import { config } from './config.ts';
 const scrypt = promisify(crypto.scrypt) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 const SESSION_MS = 30 * 24 * 3_600_000;
+
+/** 80 random bits as rec-xxxx-xxxx-xxxx-xxxx, from letters and digits that are hard to confuse. */
+const RECOVERY_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
+function newRecoveryCode() {
+  const chars = [...crypto.randomBytes(16)].map((b) => RECOVERY_CHARS[b % RECOVERY_CHARS.length]).join('');
+  return `rec-${chars.match(/.{4}/g)!.join('-')}`;
+}
+const cleanRecovery = (raw: unknown) => String(raw ?? '').trim().toLowerCase().replace(/\s+/g, '').slice(0, 64);
 
 export class AuthError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
@@ -85,10 +97,11 @@ export function createAuth(store: Store) {
       if (used >= invite.maxAccounts) throw new AuthError(403, 'That invite code has been fully used.');
       if (db.prepare('SELECT 1 FROM accounts WHERE username = ?').get(username)) throw new AuthError(409, 'That username is taken.');
       const id = newId('acct');
-      db.prepare('INSERT INTO accounts (id, username, pass_hash, invite_hash, cap_cents, created) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(id, username, hash, sha(inviteCode), invite.cents, now());
+      const recoveryCode = newRecoveryCode();
+      db.prepare('INSERT INTO accounts (id, username, pass_hash, invite_hash, cap_cents, created, recovery_hash) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, username, hash, sha(inviteCode), invite.cents, now(), sha(recoveryCode));
       config.accessCodes[id] = invite.cents;
-      return { token: startSession(id), username };
+      return { token: startSession(id), username, recoveryCode };
     },
 
     async login(input: { username?: unknown; password?: unknown }) {
@@ -115,6 +128,31 @@ export function createAuth(store: Store) {
       db.prepare('UPDATE accounts SET pass_hash = ? WHERE id = ?').run(hash, accountId);
       db.prepare('DELETE FROM sessions WHERE account_id = ? AND token_hash != ?').run(accountId, sha(keepToken));
       return { ok: true };
+    },
+
+    /** Forgot password: the recovery code sets a new password, signs out every session and is replaced. */
+    async resetPassword(input: { username?: unknown; recovery?: unknown; password?: unknown }) {
+      const username = String(input.username ?? '').trim().toLowerCase().slice(0, 64);
+      const given = Buffer.from(sha(cleanRecovery(input.recovery)), 'hex');
+      const row = db.prepare('SELECT id, username, recovery_hash FROM accounts WHERE username = ?').get(username) as { id: string; username: string; recovery_hash: string | null } | undefined;
+      const stored = Buffer.from(row?.recovery_hash ?? sha(crypto.randomBytes(16).toString('hex')), 'hex');
+      if (!row?.recovery_hash || !crypto.timingSafeEqual(given, stored)) throw new AuthError(401, 'Wrong username or recovery code.');
+      const hash = await hashPassword(checkNewPassword(input.password));
+      const recoveryCode = newRecoveryCode();
+      // Only the request that still holds the old code wins, so a code works once.
+      const changed = db.prepare('UPDATE accounts SET pass_hash = ?, recovery_hash = ? WHERE id = ? AND recovery_hash = ?').run(hash, sha(recoveryCode), row.id, row.recovery_hash);
+      if (Number(changed.changes) !== 1) throw new AuthError(401, 'Wrong username or recovery code.');
+      db.prepare('DELETE FROM sessions WHERE account_id = ?').run(row.id);
+      return { token: startSession(row.id), username: row.username, recoveryCode };
+    },
+
+    /** Operator only (no route): a new recovery code for someone who lost theirs. The old one stops working. */
+    issueRecoveryCode(rawUsername: string) {
+      const username = String(rawUsername).trim().toLowerCase();
+      const recoveryCode = newRecoveryCode();
+      const changed = db.prepare('UPDATE accounts SET recovery_hash = ? WHERE username = ?').run(sha(recoveryCode), username);
+      if (Number(changed.changes) !== 1) throw new AuthError(404, `No account called ${username}.`);
+      return recoveryCode;
     },
 
     logout(token: string) {

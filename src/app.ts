@@ -104,6 +104,16 @@ export function createApp(deps: AppDeps) {
     return auth.login(b);
   }));
 
+  /** Forgot password, with the recovery code shown at registration. Guessing is throttled like logins. */
+  app.post('/api/auth/reset', authRoute(async (c) => {
+    const b = await body(c);
+    const who = String(b.username ?? '').trim().toLowerCase().slice(0, 64);
+    if (!loginsPerUser.check(who)) throw new AuthError(429, 'Too many attempts for this account; wait a minute.');
+    const out = await auth.resetPassword(b);
+    log('password reset with a recovery code');
+    return out;
+  }));
+
   app.post('/api/auth/logout', withCode((c) => auth.logout(bearer(c))));
 
   app.post('/api/auth/password', authRoute(async (c) => {

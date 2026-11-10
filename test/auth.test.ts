@@ -1,4 +1,4 @@
-/** Invite-only accounts: register, log in, per-account limits, password change. */
+/** Invite-only accounts: register, log in, per-account limits, password change, forgot password. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -148,4 +148,60 @@ test('registrations are limited per address', async () => {
   const codes: number[] = [];
   for (let i = 0; i < config.registrationsPerMinute + 1; i++) codes.push((await register(`user${i}`, 'many')).status);
   assert.equal(codes.at(-1), 429);
+});
+
+test('forgot password: the recovery code from registration resets it once', async () => {
+  const { call, register } = setup();
+  const reg = await (await register('alice')).json() as { token: string; recoveryCode: string };
+  assert.match(reg.recoveryCode, /^rec-[a-z0-9]{4}(-[a-z0-9]{4}){3}$/);
+  const reset = (recovery: string, password = 'a-brand-new-password', username = 'alice') => call('/api/auth/reset', { username, recovery, password });
+
+  assert.equal((await reset('rec-wron-gcod-ewro-ngco')).status, 401);
+  assert.equal((await reset(reg.recoveryCode, 'a-brand-new-password', 'nobody')).status, 401, 'same answer for an unknown user');
+
+  const ok = await reset(` ${reg.recoveryCode.toUpperCase()} `);
+  assert.equal(ok.status, 200, 'spaces and case are forgiven');
+  const out = await ok.json() as { token: string; recoveryCode: string };
+  assert.notEqual(out.recoveryCode, reg.recoveryCode, 'a new code replaces the used one');
+  assert.equal((await call('/api/session', {}, reg.token)).status, 401, 'old sessions are signed out');
+  assert.equal((await call('/api/session', {}, out.token)).status, 200);
+  assert.equal((await call('/api/auth/login', { username: 'alice', password: 'a-brand-new-password' })).status, 200);
+  assert.equal((await reset(reg.recoveryCode, 'another-new-password')).status, 401, 'a used code stops working');
+  assert.equal((await reset(out.recoveryCode, 'another-new-password')).status, 200);
+});
+
+test('a reset still needs a long enough password, and the old password stops working', async () => {
+  const { call, register } = setup();
+  const { recoveryCode } = await (await register('bob')).json() as { recoveryCode: string };
+  assert.equal((await call('/api/auth/reset', { username: 'bob', recovery: recoveryCode, password: 'short' })).status, 400);
+  assert.equal((await call('/api/auth/reset', { username: 'bob', recovery: recoveryCode, password: 'a-brand-new-password' })).status, 200);
+  assert.equal((await call('/api/auth/login', { username: 'bob', password: 'a-long-password' })).status, 401);
+});
+
+test('recovery codes are stored only as hashes, and an operator can issue a new one', async () => {
+  const { store, call, register } = setup();
+  const { recoveryCode } = await (await register('alice')).json() as { recoveryCode: string };
+  assert.ok(!JSON.stringify(store.db.prepare('SELECT * FROM accounts').all()).includes(recoveryCode));
+  const { createAuth } = await import('../src/auth.ts');
+  const auth = createAuth(store);
+  const issued = auth.issueRecoveryCode('Alice');
+  assert.throws(() => auth.issueRecoveryCode('nobody'), /No account/);
+  assert.equal((await call('/api/auth/reset', { username: 'alice', recovery: recoveryCode, password: 'a-brand-new-password' })).status, 401, 'the old code stops working');
+  assert.equal((await call('/api/auth/reset', { username: 'alice', recovery: issued, password: 'a-brand-new-password' })).status, 200);
+});
+
+test('recovery code guessing is throttled per username', async () => {
+  const { call, register } = setup();
+  await register('alice');
+  const codes: number[] = [];
+  for (let i = 0; i < config.loginsPerMinutePerUser + 1; i++) codes.push((await call('/api/auth/reset', { username: 'alice', recovery: `rec-gues-s${i}aa-aaaa-aaaa`, password: 'a-brand-new-password' }, undefined, `rbot${i}`)).status);
+  assert.equal(codes[0], 401);
+  assert.equal(codes.at(-1), 429);
+});
+
+test('an account made before recovery codes cannot be reset without one', async () => {
+  const { store, call, register } = setup();
+  await register('alice');
+  store.db.prepare('UPDATE accounts SET recovery_hash = NULL').run();
+  assert.equal((await call('/api/auth/reset', { username: 'alice', recovery: '', password: 'a-brand-new-password' })).status, 401);
 });

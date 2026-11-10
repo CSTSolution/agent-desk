@@ -42,11 +42,20 @@
 
     <section class="card auth" id="authCard">
       <div>
-        <h2>Sign in</h2>
+        <h2 id="signinTitle">Sign in</h2>
         <form id="signinForm" class="stack">
           <label>Username <input id="siUser" type="text" autocomplete="username" required></label>
           <label>Password <input id="siPass" type="password" autocomplete="current-password" required></label>
           <button type="submit" id="signinBtn">Sign in</button>
+          <button type="button" id="showForgot" class="ghost slim">Forgot password?</button>
+        </form>
+        <form id="forgotForm" class="stack" hidden>
+          <p class="muted small">Use the recovery code you saved when you registered. Lost it? Ask the person who invited you for a new one.</p>
+          <label>Username <input id="fpUser" type="text" autocomplete="username" required></label>
+          <label>Recovery code <input id="fpCode" type="text" autocomplete="off" placeholder="rec-xxxx-xxxx-xxxx-xxxx" required></label>
+          <label>New password (10 or more characters) <input id="fpPass" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
+          <button type="submit" id="forgotBtn">Reset password</button>
+          <button type="button" id="hideForgot" class="ghost slim">Back to sign in</button>
         </form>
       </div>
       <div>
@@ -60,6 +69,16 @@
       </div>
       <p id="authMsg" class="msg wide" role="status"></p>
       <p class="muted small wide">This is a private, invite-only demo. Judges: the invite code is in the Devpost testing instructions.</p>
+    </section>
+
+    <section class="card keybox" id="recoveryCard" hidden>
+      <h2 id="recoveryTitle">Save your recovery code</h2>
+      <p class="muted small">It's shown only once. If you forget your password, use it with "Forgot password?" on the sign-in page.</p>
+      <pre id="recoveryCode"></pre>
+      <div class="attach">
+        <button type="button" id="copyRecovery" class="ghost">Copy</button>
+        <button type="button" id="savedRecovery">I've saved it</button>
+      </div>
     </section>
 
     <section class="card" id="passwordCard" hidden>

@@ -126,12 +126,38 @@ async function authForm(btn, path, body) {
   btn.disabled = true;
   say($('authMsg'), '');
   try {
-    const { token } = await api(path, { method: 'POST', json: body });
+    const { token, recoveryCode } = await api(path, { method: 'POST', json: body });
     setToken(token);
     await enter();
+    if (recoveryCode) showRecovery(recoveryCode, path === '/api/auth/reset');
   } catch (e) { say($('authMsg'), e.message, true); }
   btn.disabled = false;
 }
+
+/** A new recovery code is shown once: after registering, and after each reset (the old one stops working). */
+function showRecovery(code, afterReset) {
+  $('recoveryTitle').textContent = afterReset ? 'Password changed. Save your new recovery code' : 'Save your recovery code';
+  $('recoveryCode').textContent = code;
+  $('recoveryCard').hidden = false;
+  $('recoveryCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+$('copyRecovery').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('recoveryCode').textContent); $('copyRecovery').textContent = 'Copied'; } catch { /* select it by hand */ }
+});
+$('savedRecovery').addEventListener('click', () => { $('recoveryCard').hidden = true; $('recoveryCode').textContent = ''; });
+
+const forgotMode = (on) => {
+  $('signinForm').hidden = on; $('forgotForm').hidden = !on;
+  $('signinTitle').textContent = on ? 'Reset your password' : 'Sign in';
+  say($('authMsg'), '');
+};
+$('showForgot').addEventListener('click', () => { forgotMode(true); $('fpUser').value = $('siUser').value; });
+$('hideForgot').addEventListener('click', () => forgotMode(false));
+$('forgotForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  authForm($('forgotBtn'), '/api/auth/reset', { username: $('fpUser').value, recovery: $('fpCode').value, password: $('fpPass').value });
+  $('fpPass').value = '';
+});
 
 $('signinForm').addEventListener('submit', (e) => {
   e.preventDefault();
