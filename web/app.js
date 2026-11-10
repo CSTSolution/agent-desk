@@ -55,6 +55,8 @@ fetch('/api/config').then((r) => r.json()).then((c) => { state.paypal = c.paypal
 
 function startedJob(job) {
   state.jobId = job.id;
+  // The attachments belong to this job now; the next request starts empty.
+  state.attachments = []; renderAttachments();
   say($('quoteMsg'), `${money(job.heldCents)} held. Running…`);
   $('job').hidden = false;
   $('job').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -225,6 +227,15 @@ $('file').addEventListener('change', async () => {
   $('file').value = '';
 });
 
+$('request').addEventListener('input', () => { if ($('composeMsg').classList.contains('err')) say($('composeMsg'), ''); });
+
+/** Copy buttons for the one-time agent key and its command. */
+for (const [btn, src] of [['copyKey', 'agentKey'], ['copyCmd', 'mcpCmd']]) {
+  $(btn).addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($(src).textContent); $(btn).textContent = 'Copied'; setTimeout(() => { $(btn).textContent = 'Copy'; }, 1500); } catch { /* select it by hand */ }
+  });
+}
+
 $('requestForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = $('quoteBtn'); btn.disabled = true;
@@ -247,6 +258,8 @@ $('requestForm').addEventListener('submit', async (e) => {
 // ------------------------------------------------------------------ quote
 
 function renderQuote(q) {
+  // A new quote: the last job's results would be mistaken for this one's.
+  $('job').hidden = true;
   $('quote').hidden = false;
   $('quoteSummary').textContent = q.summary;
   $('quoteSteps').replaceChildren(...q.steps.map((s) => el('tr', {},
@@ -320,6 +333,7 @@ function renderJob(j) {
     ? `PayPal order ${j.paypal.orderId} · authorization ${j.paypal.authorizationId || '…'}${j.paypal.captureId ? ` · capture ${j.paypal.captureId}` : done ? ' · voided' : ''}`
     : '';
   setBalance(j.balanceCents);
+  if (done) say($('quoteMsg'), `Finished: ${money(j.capturedCents)} captured, ${money(j.releasedCents)} released.`);
   return done;
 }
 
@@ -431,6 +445,7 @@ async function showKey(id) {
   $('mcpUrl').textContent = url;
   $('mcpCmd').textContent = `claude mcp add --transport http agent-desk ${url} --header "Authorization: Bearer ${key}"`;
   $('keyBox').hidden = false;
+  $('keyBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
   say($('mandateMsg'), 'PayPal saved. Your agent can now buy within its limits.');
   loadMandates();
 }

@@ -107,6 +107,8 @@ test('limits are enforced before any money moves', async () => {
 
   const small = await agent((await mandate(5, 100)).key);
   const q3 = await call(small, 'quote_job', { request: 'Proofread this', text: LONG });
+  assert.equal(q3.json.within_limits, false);
+  assert.match(String(q3.json.next), /Over your limits \(up to \$0\.05 a job/, 'an over-limit quote does not say to buy');
   assert.match((await call(small, 'buy_job', { quote_id: q3.json.quote_id })).text, /at most 5¢ per job/);
 });
 

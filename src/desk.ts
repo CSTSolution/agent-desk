@@ -14,7 +14,7 @@ import type { Wallet } from './wallet.ts';
 import { InsufficientFunds, HoldRefused, PayPalWallet } from './wallet.ts';
 import { PayPalError, type PayPal } from './paypal/client.ts';
 import { newId, now, type Store } from './store.ts';
-import { planRequest, type InputDesc, type Quote } from './planner.ts';
+import { planRequest, detectLanguage, type InputDesc, type Quote } from './planner.ts';
 import { precheck, precheckAll, MATERIAL_SYSTEM, Limiter, type Budget } from './guard/guard.ts';
 import { wavInfo } from './judge/judge.ts';
 import { runJob, type StoredInput } from './runner.ts';
@@ -23,7 +23,7 @@ import { config } from './config.ts';
 /** The one job the pre-check lets through. */
 export const DESK_TASK = `Agent Desk sells AI jobs done on the buyer's own attachments: transcribing English audio, text-to-speech voice-overs, removing image backgrounds, translating text (Chinese, English, Vietnamese, Japanese, Korean), and grammar checks. A request asks for one or more of these. Requests to transcribe, voice or read aloud, translate, proofread, or cut out or remove a background are on_task, even very short ones such as "to Vietnamese", "read it in a British voice" or "đọc to giúp tôi".`;
 
-const BLOCKED = 'Agent Desk only takes requests to transcribe, voice, translate, grammar-check or cut out the backgrounds of your attachments.';
+const BLOCKED = "Agent Desk only takes requests to transcribe, voice, translate or grammar-check what you send, or to cut out an image's background.";
 const AUDIO = /\.(wav|mp3|m4a|aac|ogg|oga|opus|flac|webm|mp4|mov)$/i;
 const IMAGE = /\.(png|jpe?g|webp)$/i;
 
@@ -131,9 +131,12 @@ export function createDesk(deps: DeskDeps) {
     if (gate.verdict !== 'on_task') fail(422, BLOCKED, { blocked: gate.verdict });
 
     // Attached text reaches the inspector model, so it is read in full first (ai-endpoint-guard layer 3).
+    const languages = new Map<string, string | undefined>();
     for (const f of files.filter((x) => x!.kind === 'text')) {
       const row = db.prepare('SELECT path FROM files WHERE id = ?').get(f!.id) as { path: string };
-      const v = await precheckAll(deps.llm, config.llm.router, DESK_TASK, await readFile(row.path, 'utf8'), { system: MATERIAL_SYSTEM });
+      const content = await readFile(row.path, 'utf8');
+      languages.set(f!.id, detectLanguage(content));
+      const v = await precheckAll(deps.llm, config.llm.router, DESK_TASK, content, { system: MATERIAL_SYSTEM });
       const r = (v as { result?: { usage: { in: number; out: number } } }).result;
       if (r) deps.budget.record(r.usage);
       log('attachment precheck', tag(access), v.verdict, v.reason);
@@ -141,7 +144,7 @@ export function createDesk(deps: DeskDeps) {
       if (v.verdict !== 'on_task') fail(422, 'That attachment cannot be processed: it looks like instructions aimed at an AI, or content this service does not handle.', { blocked: v.verdict });
     }
 
-    const inputs: InputDesc[] = files.map((f) => ({ kind: f!.kind as InputDesc['kind'], name: f!.name, bytes: f!.bytes, chars: f!.chars ?? undefined, minutes: f!.minutes ?? undefined }));
+    const inputs: InputDesc[] = files.map((f) => ({ kind: f!.kind as InputDesc['kind'], name: f!.name, bytes: f!.bytes, chars: f!.chars ?? undefined, minutes: f!.minutes ?? undefined, language: languages.get(f!.id) }));
     const outcome = await planRequest(deps.llm, request, inputs, (u) => deps.budget.record(u));
     log('quote plan', tag(access), outcome.ok ? `${outcome.quote.steps.length} steps ${outcome.quote.totalCents}c` : outcome.code);
     if (!outcome.ok) fail(422, outcome.reason, { code: outcome.code });

@@ -46,11 +46,15 @@ export function buildServer(desk: Desk, m: Mandate, ip: string | null = null) {
     try {
       const files = body ? [(await desk.addText(m.access, body)).id] : [];
       const q = await desk.quote(m.access, ip ?? `agent:${m.id}`, request, files);
+      const left = desk.mandateRemaining(m);
+      const within = q.totalCents <= m.per_job_cents && q.totalCents <= left;
       return text(JSON.stringify({
         quote_id: q.id, summary: q.summary, total: cents(q.totalCents),
-        steps: q.steps.map((s) => ({ step: s.index + 1, service: s.title, price: cents(s.cents), check: s.check })),
-        within_limits: q.totalCents <= m.per_job_cents && q.totalCents <= desk.mandateRemaining(m),
-        next: 'Call buy_job with this quote_id to place the PayPal hold and start the work.',
+        steps: q.steps.map((s) => ({ step: s.index + 1, service: s.title + (s.params.target ? ` (${s.params.source}→${s.params.target})` : ''), price: cents(s.cents), check: s.check })),
+        within_limits: within,
+        next: within
+          ? 'Call buy_job with this quote_id to place the PayPal hold and start the work.'
+          : `Over your limits (up to ${cents(m.per_job_cents)} a job, ${cents(left)} left in total): ask your user to raise them, or split the job.`,
       }, null, 2));
     } catch (e) { return failure(e); }
   });
@@ -88,7 +92,7 @@ export function buildServer(desk: Desk, m: Mandate, ip: string | null = null) {
       const content: ({ type: 'text'; text: string } | { type: 'audio' | 'image'; data: string; mimeType: string })[] = [{ type: 'text', text: JSON.stringify({
         job_id: j.id, status: j.status, summary: j.summary,
         held: cents(j.heldCents), captured: done ? cents(j.capturedCents) : null, released: done ? cents(j.releasedCents) : null,
-        paypal: j.paypal, steps: j.steps.map((s) => ({ step: s.idx + 1, service: s.title, status: s.status, price: cents(s.cents), evidence: s.verdict?.evidence ?? [] })),
+        paypal: j.paypal && Object.fromEntries(Object.entries(j.paypal).filter(([, v]) => v != null)), steps: j.steps.map((s) => ({ step: s.idx + 1, service: s.title, status: s.status, price: cents(s.cents), evidence: s.verdict?.evidence ?? [] })),
       }, null, 2) }];
       if (done) {
         for (const s of j.steps.filter((s) => s.status === 'passed')) {

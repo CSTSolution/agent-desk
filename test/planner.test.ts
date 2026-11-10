@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planRequest, validatePlan, type InputDesc, type ModelPlan } from '../src/planner.ts';
+import { planRequest, validatePlan, detectLanguage, type InputDesc, type ModelPlan } from '../src/planner.ts';
 import { FakeLLM, canaryOf } from './fake-llm.ts';
 
 const audio: InputDesc = { kind: 'audio', name: 'talk.mp3', minutes: 2.4 };
@@ -96,4 +96,21 @@ test('the planner is told the voices, and a chosen voice is named in the quote',
   assert.ok(out.ok);
   assert.equal(out.quote.steps[0]!.params.voice, 'bm_lewis');
   assert.equal(out.quote.steps[0]!.title, 'Text to speech (British man)');
+});
+
+test('the language of a text is read from its script, not guessed from the request', () => {
+  assert.equal(detectLanguage('Cảm ơn bạn đã đặt bàn. Bàn cho bốn người của bạn đã được xác nhận vào thứ Bảy lúc bảy giờ.'), 'vi');
+  assert.equal(detectLanguage('您的四人桌已确认，时间是星期六晚上七点。'), 'zh');
+  assert.equal(detectLanguage('土曜日の七時に四名様のお席をご用意しました。'), 'ja');
+  assert.equal(detectLanguage('토요일 7시에 4인 테이블이 확정되었습니다.'), 'ko');
+  assert.equal(detectLanguage('Your table for four is confirmed for Saturday at seven.'), undefined, 'Latin script is left to the planner');
+  assert.equal(detectLanguage('Café crème, déjà vu.'), undefined, 'French accents are not Vietnamese');
+  assert.equal(detectLanguage('12 34'), undefined);
+});
+
+test('a detected language wins over the planner\'s guess', () => {
+  // Chi's test: Vietnamese text, "translate into English", and the model guessed Chinese.
+  const out = validatePlan(plan({ input_languages: ['zh'], steps: [{ service: 'translate', input: { from: 'input', index: 0 }, source: 'zh', target: 'en' }] }), [{ ...text, language: 'vi' }]);
+  assert.ok(out.ok);
+  assert.equal(out.quote.steps[0]!.params.source, 'vi');
 });

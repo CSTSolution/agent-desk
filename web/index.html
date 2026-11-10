@@ -162,10 +162,12 @@
       </form>
       <p id="mandateMsg" class="msg" role="status"></p>
       <div id="keyBox" class="keybox" hidden>
-        <p><b>Your agent key</b> (shown once; copy it now):</p>
+        <p><b>Your agent key.</b> Copy it now: it's shown only once and disappears when you leave or reload this page.</p>
         <pre id="agentKey"></pre>
+        <button type="button" id="copyKey" class="ghost slim">Copy</button>
         <p class="muted small">Add Agent Desk to Claude Code:</p>
         <pre id="mcpCmd"></pre>
+        <button type="button" id="copyCmd" class="ghost slim">Copy</button>
         <p class="muted small">Or any MCP client: Streamable HTTP at <code id="mcpUrl"></code> with the header <code>Authorization: Bearer &lt;key&gt;</code>.</p>
       </div>
       <ul id="mandates" class="mandates"></ul>

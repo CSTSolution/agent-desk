@@ -22,6 +22,26 @@ export interface InputDesc {
   chars?: number;
   /** Audio length, estimated at upload. */
   minutes?: number;
+  /** A text's language, detected by code from its script. Wins over the planner's guess. */
+  language?: string;
+}
+
+const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/g;
+/**
+ * The language of a text from its script alone, or undefined when the script
+ * doesn't settle it (most Latin-script languages). The planner never sees the
+ * text, only its size, so without this it guesses from the request's wording.
+ */
+export function detectLanguage(text: string): string | undefined {
+  const t = text.toLowerCase();
+  const letters = (t.match(/\p{L}/gu) ?? []).length;
+  if (letters < 3) return undefined;
+  const share = (re: RegExp) => (t.match(re) ?? []).length / letters;
+  if (share(/[\uac00-\ud7af\u1100-\u11ff]/g) > 0.3) return 'ko';
+  if (share(/[\u3040-\u30ff]/g) > 0.1) return 'ja';
+  if (share(/[\u4e00-\u9fff]/g) > 0.3) return 'zh';
+  if (share(VIETNAMESE) > 0.03) return 'vi';
+  return undefined;
 }
 
 export const TRANSLATE_PAIRS = new Set(['zh-en', 'en-zh', 'en-vi', 'vi-en', 'ja-en', 'ko-en']);
@@ -101,7 +121,7 @@ Use the fewest steps that deliver exactly what was asked. Never add a service th
 export async function planRequest(llm: LLM, request: string, inputs: InputDesc[], onUsage?: (u: { in: number; out: number }) => void): Promise<PlanOutcome> {
   const canary = newCanary();
   const attachments = inputs.length
-    ? inputs.map((x, i) => `${i}: ${x.kind}, ${x.kind === 'text' ? `${x.chars} characters` : x.kind === 'audio' ? `about ${(x.minutes ?? 0).toFixed(1)} minutes` : 'one image'}`).join('\n')
+    ? inputs.map((x, i) => `${i}: ${x.kind}, ${x.kind === 'text' ? `${x.chars} characters${x.language ? `, written in ${x.language}` : ''}` : x.kind === 'audio' ? `about ${(x.minutes ?? 0).toFixed(1)} minutes` : 'one image'}`).join('\n')
     : '(none)';
   const result = await llm.json({
     model: config.llm.planner, name: 'plan', schema: PlanSchema, maxTokens: 2000, temperature: 0.1,
@@ -135,7 +155,7 @@ export function validatePlan(plan: ModelPlan, inputs: InputDesc[]): PlanOutcome 
       const inp = inputs[s.input.index];
       if (!inp) return bad(`Step ${i + 1} reads attachment ${s.input.index + 1}, which does not exist.`);
       kind = inp.kind;
-      lang = plan.input_languages[s.input.index];
+      lang = inp.language ?? plan.input_languages[s.input.index];
       size = inp.kind === 'text' ? inp.chars ?? 0 : inp.kind === 'audio' ? inp.minutes ?? 0 : 1;
     } else {
       const prev = steps[s.input.index];
