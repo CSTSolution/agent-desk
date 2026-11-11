@@ -153,7 +153,9 @@ export function validatePlan(plan: ModelPlan, inputs: InputDesc[]): PlanOutcome 
     let kind: DataKind; let lang: string | undefined; let size: number;
     if (s.input.from === 'input') {
       const inp = inputs[s.input.index];
-      if (!inp) return bad(`Step ${i + 1} reads attachment ${s.input.index + 1}, which does not exist.`);
+      if (!inp) return bad(inputs.length
+        ? `Step ${i + 1} reads attachment ${s.input.index + 1}, which does not exist.`
+        : 'Nothing is attached for this job to work on. Add the text or file it should use: on the web, click "Attach text" or "Attach audio or image"; over MCP, pass it as text.');
       kind = inp.kind;
       lang = inp.language ?? plan.input_languages[s.input.index];
       size = inp.kind === 'text' ? inp.chars ?? 0 : inp.kind === 'audio' ? inp.minutes ?? 0 : 1;

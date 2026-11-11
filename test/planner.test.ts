@@ -108,6 +108,13 @@ test('the language of a text is read from its script, not guessed from the reque
   assert.equal(detectLanguage('12 34'), undefined);
 });
 
+test('a request with nothing attached says what to attach', () => {
+  // Chi's #15: the text typed into the request box, no attachment.
+  const out = validatePlan(plan({ steps: [{ service: 'tts', input: { from: 'input', index: 0 } }] }), []);
+  assert.equal(out.ok, false);
+  assert.match((out as { reason: string }).reason, /Nothing is attached.*Attach text/);
+});
+
 test('a detected language wins over the planner\'s guess', () => {
   // Chi's test: Vietnamese text, "translate into English", and the model guessed Chinese.
   const out = validatePlan(plan({ input_languages: ['zh'], steps: [{ service: 'translate', input: { from: 'input', index: 0 }, source: 'zh', target: 'en' }] }), [{ ...text, language: 'vi' }]);

@@ -246,6 +246,8 @@ $('requestForm').addEventListener('submit', async (e) => {
       $('text').value = ''; $('textBox').hidden = true; renderAttachments();
     }
     say($('composeMsg'), 'Checking the request and planning…');
+    // The last quote would look like the answer to this request.
+    $('quote').hidden = true; state.quote = null;
     const q = await api('/api/quote', { method: 'POST', json: { request: $('request').value, files: state.attachments.map((a) => a.id) } });
     state.quote = q;
     renderQuote(q);

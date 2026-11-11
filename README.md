@@ -120,6 +120,7 @@ node --env-file=.env --import tsx test/judge-eval.live.ts # labelled translation
 - **Language coverage is limited:** transcription is English only, translation covers six pairs (zh→en, en→zh, en→vi, vi→en, ja→en, ko→en), and text to speech has no Vietnamese or Korean voice.
 - **Service limits per visitor:** Fixlark allows 12 voice-overs and 5 transcriptions per 30 minutes. Each voice-over inspection uses one transcription, so that's about 5 voice-over jobs per 30 minutes. A step that can't run isn't charged.
 - **Agents send text only over MCP.** Audio and image jobs need the web page.
+- **Rate limits per account:** about 4 quotes a minute (60 a day) and 3 jobs running at once. Over that, the API and MCP answer 429; wait and retry.
 - **It's a demo:** one process, SQLite, sandbox payments.
 
 ## Licence
