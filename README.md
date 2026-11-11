@@ -6,7 +6,7 @@ Live demo: **https://desk.fixlark.com** (PayPal sandbox; no real money moves)
 
 AI agents are starting to spend money, but paying an API today means paying whether or not the output was any good. Agent Desk puts inspection between the work and the payment. PayPal *holds* the price first. Each result is checked. PayPal then *captures* only the steps that passed, and the rest of the hold goes back to the buyer.
 
-A real example from testing: asked for a voice-over and a Vietnamese translation, the voice-over passed (transcribed back with 0% word error) and was charged 10¢. The translation rendered "your parcel ships today" as *tàu bưu kiện*, literally a "parcel ship". The inspector failed it, and its 5¢ was released.
+A real example from testing: asked for a voice-over and a Vietnamese translation of "Your table for four is confirmed for Saturday at seven", the voice-over passed (transcribed back with 0% word error) and was charged 10¢. The translation rendered "table for four" as *Bàn 4*, which means table number 4. The inspector scored it 2/5 and failed it, and its 5¢ was released.
 
 ## How it works
 
