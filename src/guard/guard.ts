@@ -1,12 +1,11 @@
 /**
- * The four layers around every model call (CST ai-endpoint-guard standard),
- * ported from the skill's guard.mjs to the OpenAI-compatible client.
+ * The four layers around every model call (an AI endpoint guard standard),
+ * written for the OpenAI-compatible client.
  *
  *   1. Gate: access code, input caps, rate limits, a daily budget, a kill switch.
  *   2. Scope lock: fixed system prompt per job; user text only inside <user_input>.
  *   3. Pre-check: a small model classifies the request before the planner sees it.
- *      Here it is a small Nemotron model rather than Claude Haiku, so no Anthropic
- *      key is needed (CST keeps those for VPS app servers only).
+ *      Here it is a small Nemotron model, so the whole guard runs on one provider.
  *   4. Output check: canary, refusal marker, secrets, code, length.
  */
 import crypto from 'node:crypto';
